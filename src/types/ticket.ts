@@ -5,7 +5,7 @@ export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type CategorySource = "USER_SELECTED" | "AI_SUGGESTED" | "TECHNICIAN_OVERRIDE";
 
 export interface Category { id: string; name: string; description?: string; isActive?: boolean }
-export interface Attachment { id: string; ticketId: string; fileName: string; fileUrl: string; fileType: string; uploadedAt: string }
+export interface Attachment { id: string; ticketId: string; fileName: string; fileType: string; sizeBytes: number; uploadedAt: string; uploadedBy?: User; fileUrl?: string }
 export interface Assignment { id: string; ticketId: string; technician: User; assignedAt: string; claimedAt?: string }
 export interface Comment { id: string; ticketId: string; author: User; message: string; createdAt: string; updatedAt?: string }
 export interface TicketActivity { id: string; ticketId: string; actor?: User; type: string; description: string; createdAt: string }

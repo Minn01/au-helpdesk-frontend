@@ -10,10 +10,12 @@ export class ApiError extends Error {
 type RequestOptions = Omit<RequestInit, "body" | "credentials"> & { body?: unknown };
 const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const headers = new Headers(options.headers);
-  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  const isFormData = options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData) headers.set("Content-Type", "application/json");
+  const body: BodyInit | undefined = options.body === undefined ? undefined : options.body instanceof FormData ? options.body : JSON.stringify(options.body);
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers, credentials: "include", body: options.body === undefined ? undefined : JSON.stringify(options.body) });
+    response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers, credentials: "include", body });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new ApiError(0, "NETWORK_ERROR", "Unable to reach HelpDesk. Check your connection and try again.");
@@ -29,4 +31,5 @@ export const httpClient = {
   get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { method: "GET", signal }),
   post: <T>(path: string, body?: unknown, signal?: AbortSignal) => request<T>(path, { method: "POST", body, signal }),
   patch: <T>(path: string, body?: unknown, signal?: AbortSignal) => request<T>(path, { method: "PATCH", body, signal }),
+  delete: <T>(path: string, signal?: AbortSignal) => request<T>(path, { method: "DELETE", signal }),
 };

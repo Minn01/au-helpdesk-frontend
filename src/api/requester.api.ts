@@ -1,7 +1,5 @@
 import type { TicketFilters, TicketInput } from "../types/ticket";
-import type { UserRole } from "../types/user";
 import { adaptCategory, adaptComment, adaptTicket, adaptUser, type ApiTicket } from "./api.adapters";
-import { developmentUserIds } from "./api.config";
 import { httpClient } from "./http.client";
 
 const ticketBody = (input: TicketInput) => ({ title: input.title.trim(), description: input.description.trim(), location: input.location?.trim() || null, ...(input.categoryId === "AUTO_DETECT" ? { categoryIntent: "AUTO_DETECT" } : { categoryId: input.categoryId }) });
@@ -9,7 +7,6 @@ const queryString = (filters: TicketFilters) => { const query = new URLSearchPar
 
 export const requesterApi = {
   async getCurrentUser(signal?: AbortSignal) { const { user } = await httpClient.get<{ user: Parameters<typeof adaptUser>[0] }>("/auth/me", signal); return adaptUser(user); },
-  async developmentLogin(role: UserRole) { const { user } = await httpClient.post<{ user: Parameters<typeof adaptUser>[0] }>("/dev/auth/login", { userId: developmentUserIds[role] }); return adaptUser(user); },
   async logout() { await httpClient.post<void>("/auth/logout"); },
   async getMyTickets(ownerId: string, filters: TicketFilters = {}, signal?: AbortSignal) { const payload = await httpClient.get<{ tickets: ApiTicket[] }>(`/tickets/mine${queryString(filters)}`, signal); return payload.tickets.map((ticket) => adaptTicket(ticket, { id: ownerId, name: "You", email: "", role: "STUDENT", createdAt: ticket.createdAt })); },
   async getTicketById(id: string, signal?: AbortSignal) { const { ticket } = await httpClient.get<{ ticket: ApiTicket }>(`/tickets/${id}`, signal); return adaptTicket(ticket); },

@@ -41,14 +41,16 @@ Express ↔ EduCore peer API
 ## What exists now
 
 - This repository is frontend-only: React 19, TypeScript, Vite 8, Tailwind CSS 4, React Router 7, and pnpm.
-- The frontend target includes typed in-memory mock services, development auth, protected/role-aware routing, an authenticated responsive shell, and complete Student/Faculty, Technician, and Admin mock workflows.
+- The frontend includes typed in-memory mock data services, Microsoft-only authentication, protected/role-aware routing, an authenticated responsive shell, and complete Student/Faculty, Technician, and Admin workflows.
 - Phase 4 connects Student/Faculty auth, tickets, categories, and comments to the real backend through `src/api/http.client.ts` and DTO adapters. Real API mode is the default; session-memory mocks require the explicit `VITE_USE_MOCK_API=true` option and production must never silently fall back to them.
 - Phase 5 connects the Technician Dashboard, queue, assigned tickets, shared ticket details/comments, concurrency-safe claiming, lifecycle actions, and classification overrides to the real backend. Admin functions remain explicit later-phase failures in real API mode.
 - Phase 6 connects the Admin Dashboard, paginated ticket search/filter/detail and assignment, active/inactive category management, and HelpDesk user role/status management to the real backend.
-- Phase 7 connects production Microsoft sign-in through backend redirects, restores the HttpOnly-cookie session through `/auth/me`, displays safe callback errors, and keeps seeded login controls development-only.
-- Authentication uses backend-managed Microsoft Azure AD redirects in production. A seeded-user selector remains development-only, and the sidebar is the single authenticated identity/logout surface.
+- Phase 7 connects Microsoft sign-in through backend redirects, restores the HttpOnly-cookie session through `/auth/me`, and displays safe callback errors.
+- The attachment frontend uses a two-step ticket-create/upload flow, private short-lived signed URLs, and role-aware upload/removal controls through `attachments.api.ts`.
+- Technician/Admin ticket details lazily retrieve normalized EduCore registration context through the HelpDesk backend for Course Registration tickets; React never handles peer API keys or calls EduCore directly.
+- Authentication uses backend-managed Microsoft Azure AD redirects for every role, and the sidebar is the single authenticated identity/logout surface.
 - Ticket creation supports a real category choice or `AUTO_DETECT` submission intent. Mock classification records the resolved relational category and its origin; no real AI call occurs.
-- Attachment selection/preview is prototype-only; there is no upload.
+- Attachments are uploaded through the backend multipart API and displayed from safe ticket-detail metadata; private files are opened with fresh signed URLs.
 - Tailwind is imported in `src/index.css` and configured through `@tailwindcss/vite`.
 
 ## Do not implement yet
@@ -63,7 +65,7 @@ Microsoft will prove identity. HelpDesk will then find/create its internal `User
 
 The current backend session is carried only in the `helpdesk_session` HttpOnly cookie. Every frontend API request must use `credentials: "include"`; JavaScript must never attempt to read or persist the session token. A 401 clears frontend auth state and returns the user to `/login`.
 
-Roles are `STUDENT`, `FACULTY`, `TECHNICIAN`, and `ADMIN`. The backend must eventually enforce RBAC. Frontend guards only control presentation and are never security boundaries. Current `AuthContext` exposes `user`, `isAuthenticated`, `isLoading`, `login()`, and `logout()`; unauthenticated protected routes redirect to `/login`.
+Roles are `STUDENT`, `FACULTY`, `TECHNICIAN`, and `ADMIN`. The backend must eventually enforce RBAC. Frontend guards only control presentation and are never security boundaries. Current `AuthContext` exposes `user`, `isAuthenticated`, `isLoading`, Microsoft sign-in redirect, and `logout()`; unauthenticated protected routes redirect to `/login`.
 
 ## Roles and ownership
 
@@ -145,7 +147,7 @@ Future backend boundaries should cover auth, tickets, categories, comments, atta
 
 ## Current frontend routes and quality bar
 
-- `/login`: university Microsoft sign-in presentation plus clearly development-only mock roles.
+- `/login`: university Microsoft sign-in presentation and safe callback-error guidance.
 - `/dashboard`: summary counts, recent tickets, requester CTA.
 - `/tickets`: own tickets with search, filters, sort, responsive table/cards.
 - `/tickets/new`: title, description, manual/auto category, location, prototype attachments, async feedback, redirect.

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authApi } from "../api/auth.api";
 import type { AuthState } from "../types/auth";
-import type { User, UserRole } from "../types/user";
+import type { User } from "../types/user";
 import { unauthorizedEvent } from "../api/http.client";
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -9,7 +9,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null); const [isLoading, setIsLoading] = useState(true);
   useEffect(() => { authApi.getCurrentUser().then(setUser).catch(() => setUser(null)).finally(() => setIsLoading(false)); }, []);
   useEffect(() => { const clearSession = () => setUser(null); window.addEventListener(unauthorizedEvent, clearSession); return () => window.removeEventListener(unauthorizedEvent, clearSession); }, []);
-  const value = useMemo<AuthState>(() => ({ user, isAuthenticated: Boolean(user), isLoading, startMicrosoftLogin: authApi.startMicrosoftLogin, developmentLogin: async (role: UserRole) => setUser(await authApi.developmentLogin(role)), logout: async () => { await authApi.logout(); setUser(null); } }), [user, isLoading]);
+  const value = useMemo<AuthState>(() => ({ user, isAuthenticated: Boolean(user), isLoading, startMicrosoftLogin: authApi.startMicrosoftLogin, logout: async () => { await authApi.logout(); setUser(null); } }), [user, isLoading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 // eslint-disable-next-line react-refresh/only-export-components
