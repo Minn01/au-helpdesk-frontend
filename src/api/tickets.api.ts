@@ -1,6 +1,6 @@
 import type { Ticket, TicketFilters, TicketInput, TicketPriority, TicketStatus } from "../types/ticket";
 import type { User } from "../types/user";
-import { categories, delay, setTickets, tickets } from "./store";
+import { categories, comments, delay, setTickets, tickets } from "./store";
 import { requesterApi } from "./requester.api";
 import { useMockApi } from "./api.config";
 import { technicianApi } from "./technician.api";
@@ -43,6 +43,7 @@ const mockTicketsApi = {
   async getTicketQueue(filters: TicketFilters = {}) { await delay(); return structuredClone(filterTickets(tickets.filter((ticket) => ticket.status === "OPEN" && !ticket.assignedTechnician), filters)); },
   async getAssignedTickets(technicianId: string, filters: TicketFilters = {}) { await delay(); return structuredClone(filterTickets(tickets.filter((ticket) => ticket.assignedTechnician?.id === technicianId), filters)); },
   async getTicketById(id: string) { await delay(); return structuredClone(tickets.find((ticket) => ticket.id === id) ?? null); },
+  async getTicketDetails(id: string) { await delay(); const ticket = tickets.find((item) => item.id === id) ?? null; return { ticket: structuredClone(ticket), comments: structuredClone(comments.filter((comment) => comment.ticketId === id).sort((a, b) => a.createdAt.localeCompare(b.createdAt))) }; },
   async createTicket(input: TicketInput, user: User) {
     await delay(650);
     const now = new Date().toISOString(); const id = `ticket-${Date.now()}`;
@@ -76,6 +77,7 @@ const mockTicketsApi = {
 export const ticketsApi = useMockApi ? mockTicketsApi : {
   getMyTickets: requesterApi.getMyTickets,
   getTicketById: requesterApi.getTicketById,
+  getTicketDetails: requesterApi.getTicketDetails,
   createTicket: (...args: [TicketInput, User]) => requesterApi.createTicket(args[0]),
   updateTicket: (...args: [string, TicketInput, string]) => requesterApi.updateTicket(args[0], args[1]),
   cancelTicket: (...args: [string, string]) => requesterApi.cancelTicket(args[0]),

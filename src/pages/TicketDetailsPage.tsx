@@ -16,13 +16,34 @@ import type { Category, Comment, Ticket, TicketPriority } from "../types/ticket"
 import type { User } from "../types/user";
 
 export function TicketDetailsPage() {
-  const { ticketId = "" } = useParams(); const location = useLocation(); const { user } = useAuth();
+  const { ticketId = "" } = useParams(); const location = useLocation(); const { user } = useAuth(); const role = user?.role;
   const [ticket, setTicket] = useState<Ticket | null>(null); const [comments, setComments] = useState<Comment[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [technicians, setTechnicians] = useState<User[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [sending, setSending] = useState(false); const [confirming, setConfirming] = useState(false); const [cancelling, setCancelling] = useState(false); const [acting, setActing] = useState(false);
   const navigationState = location.state as { attachmentWarning?: string; attachmentSuccess?: string } | null;
-  const load = useCallback(() => { setLoading(true); setError(""); if (user?.role === "ADMIN") { Promise.all([adminApi.getTicket(ticketId), usersApi.getTechnicians()]).then(([details, techs]) => { setTicket(details.ticket); setComments(details.comments); setTechnicians(techs); setCategories([]); }).catch((reason) => setError(reason instanceof Error ? reason.message : "The ticket could not be loaded.")).finally(() => setLoading(false)); return; } Promise.all([ticketsApi.getTicketById(ticketId), commentsApi.getComments(ticketId), categoriesApi.getCategories()]).then(([data, notes, categoryItems]) => { setTicket(data); setComments(notes); setCategories(categoryItems); setTechnicians([]); }).catch((reason) => setError(reason instanceof Error ? reason.message : "The ticket could not be loaded.")).finally(() => setLoading(false)); }, [ticketId, user?.role]);
+  const load = useCallback(async () => {
+    setLoading(true); setError(""); setTicket(null); setComments([]); setCategories([]); setTechnicians([]);
+    try {
+      if (role === "ADMIN") {
+        const details = await adminApi.getTicket(ticketId);
+        setTicket(details.ticket); setComments(details.comments); setLoading(false);
+        try { setTechnicians(await usersApi.getTechnicians()); }
+        catch { setError("The ticket loaded, but the technician list is temporarily unavailable."); }
+      } else {
+        const details = await ticketsApi.getTicketDetails(ticketId);
+        setTicket(details.ticket); setComments(details.comments); setLoading(false);
+        if (role === "TECHNICIAN") {
+          try { setCategories(await categoriesApi.getCategories()); }
+          catch { setError("The ticket loaded, but categories are temporarily unavailable."); }
+        }
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The ticket could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [role, ticketId]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(load, [load]);
+  useEffect(() => { void load(); }, [load]);
   const send = async (event: FormEvent) => { event.preventDefault(); if (!message.trim() || !user || sending) return; setSending(true); setError(""); try { const comment = await commentsApi.createComment(ticketId, message.trim(), user); setComments((current) => [...current, comment]); setMessage(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "The comment could not be added."); } finally { setSending(false); } };
   const cancel = async () => { if (!user || cancelling) return; setCancelling(true); try { setTicket(await ticketsApi.cancelTicket(ticketId, user.id)); setConfirming(false); } catch (reason) { setError(reason instanceof Error ? reason.message : "The ticket could not be cancelled."); } finally { setCancelling(false); } };
   const act = async (request: () => Promise<Ticket>) => { if (acting) return; setActing(true); setError(""); try { setTicket(await request()); } catch (reason) { setError(reason instanceof Error ? reason.message : "The ticket could not be updated."); } finally { setActing(false); } };
@@ -30,7 +51,7 @@ export function TicketDetailsPage() {
   if (error && !ticket) return <ErrorState message={error} retry={load} />;
   if (!ticket) return <ErrorState message="We couldn't find this ticket." />;
   if (user && ["STUDENT", "FACULTY"].includes(user.role) && ticket.createdBy.id !== user.id) return <ErrorState message="You do not have access to this ticket." />;
-  const canModify = ticket.status === "OPEN" && ticket.createdBy.id === user?.id; const isTechnician = user?.role === "TECHNICIAN"; const isAdmin = user?.role === "ADMIN"; const assignedToMe = ticket.assignedTechnician?.id === user?.id; const backTo = isAdmin ? "/admin/tickets" : isTechnician ? (assignedToMe ? "/assigned" : "/queue") : "/tickets";
+  const canModify = ticket.status === "OPEN" && ticket.createdBy.id === user?.id; const isTechnician = user?.role === "TECHNICIAN"; const isAdmin = user?.role === "ADMIN"; const assignedToMe = ticket.assignedTechnician?.id === user?.id; const canComment = !isAdmin && (!isTechnician || assignedToMe); const backTo = isAdmin ? "/admin/tickets" : isTechnician ? (assignedToMe ? "/assigned" : "/queue") : "/tickets";
   return <div className="detail-page">
     <Link className="back-link" to={backTo}><Icon name="back" />Back to tickets</Link>
     {navigationState?.attachmentWarning && <div className="inline-error" role="alert"><Icon name="alert" />{navigationState.attachmentWarning}</div>}
@@ -43,7 +64,7 @@ export function TicketDetailsPage() {
       {ticket.aiSuggestedCategory && <section className="panel detail-section ai-suggestion"><h3>AI suggestion</h3><p>Category: <strong>{ticket.aiSuggestedCategory}</strong> · Priority: <strong>{humanize(ticket.aiSuggestedPriority ?? "MEDIUM")}</strong></p>{ticket.aiSummary && <small>{ticket.aiSummary}</small>}</section>}
       {(isTechnician || isAdmin) && ticket.category.name === "Course Registration" && <EduCoreContextPanel ticketId={ticket.id} />}
       <AttachmentPanel ticket={ticket} user={user} onChange={(attachments) => setTicket((current) => current ? { ...current, attachments } : current)} />
-      <section className="panel detail-section"><div className="section-title"><div><h3>Conversation</h3><p>Updates between the requester and IT support team.</p></div><span>{comments.length}</span></div><div className="comments">{comments.length === 0 ? <p className="muted empty-copy">No comments yet.</p> : comments.map((comment) => <article className="comment" key={comment.id}><Initials name={comment.author.name} small /><div><div className="comment-meta"><strong>{comment.author.name}</strong><span>{humanize(comment.author.role)}</span><time>{formatDate(comment.createdAt, true)}</time></div><p>{comment.message}</p></div></article>)}</div>{!isAdmin && <form className="comment-form" onSubmit={send}><Initials name={user?.name ?? "You"} small /><label><span className="sr-only">Add a comment</span><textarea maxLength={1000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a comment or add more information…" /><div><small>{message.length}/1000</small><button className="primary-button compact" disabled={sending || !message.trim()}>{sending ? "Sending…" : <>Send comment<Icon name="send" /></>}</button></div></label></form>}</section>
+      <section className="panel detail-section"><div className="section-title"><div><h3>Conversation</h3><p>Updates between the requester and IT support team.</p></div><span>{comments.length}</span></div><div className="comments">{comments.length === 0 ? <p className="muted empty-copy">No comments yet.</p> : comments.map((comment) => <article className="comment" key={comment.id}><Initials name={comment.author.name} small /><div><div className="comment-meta"><strong>{comment.author.name}</strong><span>{humanize(comment.author.role)}</span><time>{formatDate(comment.createdAt, true)}</time></div><p>{comment.message}</p></div></article>)}</div>{isTechnician && !assignedToMe && <p className="muted empty-copy">Claim this ticket before adding a comment.</p>}{canComment && <form className="comment-form" onSubmit={send}><Initials name={user?.name ?? "You"} small /><label><span className="sr-only">Add a comment</span><textarea maxLength={1000} rows={3} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a comment or add more information…" /><div><small>{message.length}/1000</small><button className="primary-button compact" disabled={sending || !message.trim()}>{sending ? "Sending…" : <>Send comment<Icon name="send" /></>}</button></div></label></form>}</section>
     </div><aside className="detail-side"><section className="panel detail-section"><h3>Ticket information</h3><dl className="info-list"><div><dt>Created by</dt><dd><Initials name={ticket.createdBy.name} small /><span>{ticket.createdBy.name}<small>{ticket.createdBy.email}</small></span></dd></div><div><dt>Created</dt><dd>{formatDate(ticket.createdAt, true)}</dd></div><div><dt>Last updated</dt><dd>{formatDate(ticket.updatedAt, true)}</dd></div><div><dt>Location</dt><dd>{ticket.location ?? "Not provided"}</dd></div><div><dt>Assigned technician</dt><dd>{ticket.assignedTechnician ? <><Initials name={ticket.assignedTechnician.name} small /><span>{ticket.assignedTechnician.name}<small>IT Support</small></span></> : <span className="muted">Not yet assigned</span>}</dd></div></dl></section><section className="panel detail-section"><div className="section-title"><h3>Activity</h3><Icon name="clock" /></div><ol className="timeline">{[...ticket.activities].reverse().map((item) => <li key={item.id}><span /><div><strong>{item.description}</strong><time>{formatDate(item.createdAt, true)}</time></div></li>)}</ol></section></aside></div>
     <ConfirmDialog open={confirming} title="Cancel this ticket?" message="Are you sure you want to cancel this ticket? This action cannot be undone." confirmLabel="Yes, cancel ticket" pendingLabel="Cancelling…" cancelLabel="Keep ticket" tone="danger" pending={cancelling} onConfirm={cancel} onCancel={() => setConfirming(false)} />
   </div>;

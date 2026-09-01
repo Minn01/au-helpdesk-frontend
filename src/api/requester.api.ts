@@ -10,6 +10,7 @@ export const requesterApi = {
   async logout() { await httpClient.post<void>("/auth/logout"); },
   async getMyTickets(ownerId: string, filters: TicketFilters = {}, signal?: AbortSignal) { const payload = await httpClient.get<{ tickets: ApiTicket[] }>(`/tickets/mine${queryString(filters)}`, signal); return payload.tickets.map((ticket) => adaptTicket(ticket, { id: ownerId, name: "You", email: "", role: "STUDENT", createdAt: ticket.createdAt })); },
   async getTicketById(id: string, signal?: AbortSignal) { const { ticket } = await httpClient.get<{ ticket: ApiTicket }>(`/tickets/${id}`, signal); return adaptTicket(ticket); },
+  async getTicketDetails(id: string, signal?: AbortSignal) { const { ticket } = await httpClient.get<{ ticket: ApiTicket }>(`/tickets/${id}`, signal); return { ticket: adaptTicket(ticket), comments: (ticket.comments ?? []).map(adaptComment) }; },
   async createTicket(input: TicketInput) { const { ticket } = await httpClient.post<{ ticket: ApiTicket }>("/tickets", ticketBody(input)); return adaptTicket(ticket); },
   async updateTicket(id: string, input: TicketInput) { const { ticket } = await httpClient.patch<{ ticket: ApiTicket }>(`/tickets/${id}`, ticketBody(input)); return adaptTicket(ticket); },
   async cancelTicket(id: string) { const { ticket } = await httpClient.post<{ ticket: ApiTicket }>(`/tickets/${id}/cancel`); return adaptTicket(ticket); },
