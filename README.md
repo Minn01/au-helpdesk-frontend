@@ -6,7 +6,7 @@ HelpDesk is a web-based internal IT support platform for university students, fa
 
 - **Live system:** https://minthant-bad2026.eastasia.cloudapp.azure.com/helpdesk
 - **Repository:** https://github.com/Minn01/au-helpdesk-frontend
-- **Team:** Soe Min Min Latt (6611938), Min Thant (6612012)
+- **Team:** Aung Myint Myat (6611906), Soe Min Min Latt (6611938), Min Thant (6612012)
 
 
 ---
